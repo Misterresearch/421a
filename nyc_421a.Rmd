@@ -5,9 +5,7 @@ date: "January 2, 2018"
 output: html_document
 ---
 
-**LIBRARIES**
-
-```{r, echo=TRUE, warning=FALSE, message=FALSE}
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 library(dplyr)
 library(tidyr)
 library(stats)
