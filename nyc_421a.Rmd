@@ -1,0 +1,90 @@
+---
+title: "NYC 2017/2018 421a Exempt Properties"
+author: "Blandon Casenave"
+date: "January 2, 2018"
+output: html_document
+---
+
+**LIBRARIES**
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(tidyr)
+library(stats)
+library(prophet)
+library(pROC)
+library(ggplot2)
+library(forecast)
+library(tseries)
+library(segmented)
+library(data.table)
+library(RCurl)
+library(XML)
+library(rvest)
+library(scales)
+library(MASS)
+```
+
+
+
+```{r setup, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+
+bronx<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_bronx.csv"
+
+brooklyn <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_brooklyn.csv"
+
+queens<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_queens.csv"
+
+manhattan<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_manhattan.csv"
+
+si <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_statenisland.csv"
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+
+manhattantable <- read.csv(manhattan, header = FALSE, sep = ",")
+manhattantable <-manhattantable[-c(1:5),]
+colnames(manhattantable)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+bronxtable <- read.csv(bronx, header = FALSE, sep = ",")
+bronxtable <-bronxtable[-c(1:5),]
+colnames(bronxtable)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+brooklyntable <- read.csv(brooklyn, header = FALSE, sep = ",")
+brooklyntable <-brooklyntable[-c(1:5),]
+colnames(brooklyntable)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+queenstable <- read.csv(queens, header = FALSE, sep = ",")
+queenstable <-queenstable[-c(1:5),]
+colnames(queenstable)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+sitable <- read.csv(si, header = FALSE, sep = ",")
+sitable <-sitable[-c(1:5),]
+colnames(sitable)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+allnyc <- rbind(manhattantable,bronxtable,brooklyntable,queenstable, sitable)
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+byboro <- allnyc %>%
+  na.omit() %>%
+  group_by(Borough) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts))
+  
+byneighb <- allnyc %>%
+  na.omit() %>%
+  group_by(Neighborhood) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts)) 
+
+ggplot(data = byboro,aes(x = reorder(Borough,desc(allcounts)), y = allcounts)) + geom_histogram(fill="blue", stat = "identity") + scale_x_discrete(labels = c("Brooklyn", "Queens", "Manhattan", "Bronx", "Staten Island"), name = "Borough")+ scale_y_continuous(name = "# of Units") + ggtitle("FY 2017/18 421a Units By Borough") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts)), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25)
+
+ggplot(data = byneighb[c(1:20),], aes(x=reorder(Neighborhood, desc(allcounts)), y = allcounts)) + geom_histogram(fill="grey", stat = "identity", color="blue") + scale_x_discrete(name ="Neighborhood") + scale_y_continuous(name = "# of Units") + ggtitle("FY 2017/18 421a Units Top 20 Neighborhood") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts)), sep=","), position = position_dodge(0.9), size=3, vjust=-0.25) + theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6))
+```
+
+
+[NYC 421a Housing Table](http://www1.nyc.gov/site/finance/benefits/benefits-421a.page)
+
