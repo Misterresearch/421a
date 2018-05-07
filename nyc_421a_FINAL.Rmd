@@ -1,0 +1,860 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+<style type="text/css">
+h1.title {
+  color: #000080;
+  font-size: 32px;
+  font-weight: bold;
+}
+h2 {
+  color: #008000;
+  font-size: 22px;
+}
+h3 {
+  font-size: 16px;
+}
+body p{
+  color: #000080;
+}
+</style>
+---
+title: "The 421a Tax Abatement The Black Population Loss in NYC"
+author: "Blandon Casenave"
+date: "May 7, 2018"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+## INTRODUCTION
+
+The principal research question for this project, is to determine whether or not the 421a Tax Abatement, designed to stimulate housing development in New York City, became a driver in the decrease of tha city's Black population. Over the years a variety of news outlets, as well as casual observations have all seemed to support the commonly accepted idea that the Black population in NYC has decreased. 
+
+In 2012, the title of an article in one of NYC's local newspaper's, reads "Black population surges in East New York as it falls across the borough and city" [^1]. The article goes on to detail the population losses, primarily in Brooklyn, 2000-2010. Also, very recent data that shows, Brooklyn, New York's overall population has decreased from  2016 to 2017, the first annual drop since 2010 [^2].  
+
+However, a phrase from the above article, captures the central mission of our research study. The article states "Whether gentrification leads directly to displacement is a separate question..." - this is precisely the question we're aiming to answer. While there's no agreement on what defines gentrification, or at least its measurable indicators (housing costs, income, etc), this research study takes another angle. This study operationalizes the concept of gentrification, by a single policy initiative  - NYC's official count of 421a tax abated units. The research question becomes more specific, has New York City's 421a Tax Abatement policy, caused the displacement of Blacks and others in New York City?. This is a very different question that asking whether the symptoms of gentrification, such as higher housing costs or a decrease in manufacturing jobs, have caused population displacement. This research question seeks to quantify the causal relationship between policy and outcomes, if any.
+
+The second policy consideration is to determine whether or not, New York Police Departments "Stop & Frisk" practice, during its peak years, was also a causal factor in displacement vis a vis being enforced in areas with the highest amount of 421 tax abated housing.  
+
+Finally, a supplemental component of our study, was to perform the same quantitative analysis used to measure the impacts on Blacks, also on the Puerto Rican subset of the Latino community. 
+
+## ABSTRACT
+
+The American Community Survey (ACS) data so far has actually shown that the compound annual growth rate (CAGR) is positive for the overall population of NYC (Overall), as well as the African-American/Black (Black), White & Latino racial/ethnic groupings in New York City from 2005-2016 [^3]. However, of the five separate racial/ethnic groupings in our analysis - Puerto Rican was the only one to see a negative CAGR from 2005-2016. 
+
+Tallies for 421a abated units, as well as location, were provided by the New York City Department of Finance[^4]. Data is available from 2013-2018, severely limiting the scope of our analysis. However, it's important to note that data in each year is cumulative from all previous years, minus units whose 421a tax abatement had expired.  
+Finally, NYPD Stop & Frisk data spans 2003-2016 [^5]. It's important to note that policy changes in 2012, essentially ended this practice in New York City. However,the question still remains, was Stop & Frisk effective tool in population displacement during its peak year 2006-2011, by being enforced in the areas with newly built some tax abated housing? 
+
+Although the population in New York City, is more white, the Black and Latino populations have also grown. It's the Puerto Rican community, that best demonstrates the link between the 421a Tax Abatement policy and displacement given its population losses, and portion of 421a units in areas dominated by this ethnic group.   
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(tidyr)
+library(stats)
+library(prophet)
+library(pROC)
+library(ggplot2)
+library(forecast)
+library(tseries)
+library(segmented)
+library(data.table)
+library(RCurl)
+library(XML)
+library(rvest)
+library(scales)
+library(formattable)
+```
+
+## FISCAL YEAR 2013-18 421a TAX ABATEMENT DESRCIPTIVE STATS
+
+The 421a tax abated unit counts, are "as of" or cumulative for each year that it is provided. The analysis and visualization provided below, are all tax abated units in NYC as of fiscal year 2017-18. 
+
+Of the 67,007 tax abated units that exist in NYC as of fiscal year 2017-18, 47% or 31,776 are Brooklyn. Queens follows with 25% or 16,645. Further when Williamsburg North, South, East and Central are combined - it represents 7,916 tax abated units - the largest in the entire city, followed by Flushing Queens at 4,186.
+
+
+```{r setup, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+#FY2018
+bronx18<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_bronx.csv"
+
+brooklyn18 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_brooklyn.csv"
+
+queens18<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_queens.csv"
+
+manhattan18<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_manhattan.csv"
+
+si18 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1718_statenisland.csv"
+
+manhattantable18 <- read.csv(manhattan18, header = FALSE, sep = ",")
+manhattantable18 <-manhattantable18[-c(1:5),]
+colnames(manhattantable18)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+bronxtable18 <- read.csv(bronx18, header = FALSE, sep = ",")
+bronxtable18 <-bronxtable18[-c(1:5),]
+colnames(bronxtable18)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+brooklyntable18 <- read.csv(brooklyn18, header = FALSE, sep = ",")
+brooklyntable18 <-brooklyntable18[-c(1:5),]
+colnames(brooklyntable18)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+queenstable18 <- read.csv(queens18, header = FALSE, sep = ",")
+queenstable18 <-queenstable18[-c(1:5),]
+colnames(queenstable18)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+sitable18 <- read.csv(si18, header = FALSE, sep = ",")
+sitable18 <-sitable18[-c(1:5),]
+colnames(sitable18)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+allnyc18 <- rbind(manhattantable18,bronxtable18,brooklyntable18,queenstable18, sitable18)
+
+
+#FY2017
+
+bronx17<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1617_bronx.csv"
+
+brooklyn17 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1617_brooklyn.csv"
+
+queens17<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1617_queens.csv"
+
+manhattan17<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1617_manhattan.csv"
+
+si17 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1617_statenisland.csv"
+
+manhattantable17 <- read.csv(manhattan17, header = FALSE, sep = ",")
+manhattantable17 <-manhattantable17[-c(1:5),]
+colnames(manhattantable17)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+bronxtable17 <- read.csv(bronx17, header = FALSE, sep = ",")
+bronxtable17 <-bronxtable17[-c(1:5),]
+colnames(bronxtable17)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+brooklyntable17 <- read.csv(brooklyn17, header = FALSE, sep = ",")
+brooklyntable17 <-brooklyntable17[-c(1:5),]
+colnames(brooklyntable17)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+queenstable17 <- read.csv(queens17, header = FALSE, sep = ",")
+queenstable17 <-queenstable17[-c(1:5),]
+colnames(queenstable17)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+sitable17 <- read.csv(si17, header = FALSE, sep = ",")
+sitable17 <-sitable17[-c(1:5),]
+colnames(sitable17)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+allnyc17 <- rbind(manhattantable17,bronxtable17,brooklyntable17,queenstable17, sitable17)
+
+
+#FY2016
+
+bronx16<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1516_bronx.csv"
+
+brooklyn16 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1516_brooklyn.csv"
+
+queens16<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1516_queens.csv"
+
+manhattan16<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1516_manhattan.csv"
+
+si16 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1516_statenisland.csv"
+
+manhattantable16 <- read.csv(manhattan16, header = FALSE, sep = ",")
+manhattantable16 <-manhattantable16[-c(1:5),]
+colnames(manhattantable16)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+bronxtable16 <- read.csv(bronx16, header = FALSE, sep = ",")
+bronxtable16 <-bronxtable16[-c(1:5),]
+colnames(bronxtable16)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+brooklyntable16 <- read.csv(brooklyn16, header = FALSE, sep = ",")
+brooklyntable16 <-brooklyntable16[-c(1:5),]
+colnames(brooklyntable16)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+queenstable16 <- read.csv(queens16, header = FALSE, sep = ",")
+queenstable16 <-queenstable16[-c(1:5),]
+colnames(queenstable16)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+sitable16 <- read.csv(si16, header = FALSE, sep = ",")
+sitable16 <-sitable16[-c(1:5),]
+colnames(sitable16)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+allnyc16 <- rbind(manhattantable16,bronxtable16,brooklyntable16,queenstable16, sitable16)
+
+#FY2015
+
+bronx15<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1415_bronx.csv"
+
+brooklyn15 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1415_brooklyn.csv"
+
+queens15<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1415_queens.csv"
+
+manhattan15<-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1415_manhattan.csv"
+
+si15 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/421a_1415_statenisland.csv"
+
+manhattantable15 <- read.csv(manhattan15, header = FALSE, sep = ",")
+manhattantable15 <-manhattantable15[-c(1:5),]
+colnames(manhattantable15)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+bronxtable15 <- read.csv(bronx15, header = FALSE, sep = ",")
+bronxtable15 <-bronxtable15[-c(1:5),]
+colnames(bronxtable15)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+brooklyntable15 <- read.csv(brooklyn15, header = FALSE, sep = ",")
+brooklyntable15 <-brooklyntable15[-c(1:5),]
+colnames(brooklyntable15)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+queenstable15 <- read.csv(queens15, header = FALSE, sep = ",")
+queenstable15 <-queenstable15[-c(1:5),]
+colnames(queenstable15)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+sitable15 <- read.csv(si15, header = FALSE, sep = ",")
+sitable15 <-sitable15[-c(1:5),]
+colnames(sitable15)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+allnyc15 <- rbind(manhattantable15,bronxtable15,brooklyntable15,queenstable15, sitable15)
+
+#FY2014
+
+bronx14<-"https://raw.githubusercontent.com/Misterresearch/421a/master/bronx_421a.csv"
+
+brooklyn14 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/brooklyn_421a.csv"
+
+queens14<-"https://raw.githubusercontent.com/Misterresearch/421a/master/queens_421a.csv"
+
+manhattan14<-"https://raw.githubusercontent.com/Misterresearch/421a/master/manhattan_421a.csv"
+
+si14 <-"https://raw.githubusercontent.com/Misterresearch/421a/master/statenisland_421a.csv"
+
+manhattantable14 <- read.csv(manhattan14, header = FALSE, sep = ",")
+manhattantable14 <-manhattantable14[-c(1:5),]
+colnames(manhattantable14)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+bronxtable14 <- read.csv(bronx14, header = FALSE, sep = ",")
+bronxtable14 <-bronxtable14[-c(1:5),]
+colnames(bronxtable14)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+brooklyntable14 <- read.csv(brooklyn14, header = FALSE, sep = ",")
+brooklyntable14 <-brooklyntable14[-c(1:5),]
+colnames(brooklyntable14)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+queenstable14 <- read.csv(queens14, header = FALSE, sep = ",")
+queenstable14 <-queenstable14[-c(1:5),]
+colnames(queenstable14)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+sitable14 <- read.csv(si14, header = FALSE, sep = ",")
+sitable14 <-sitable14[-c(1:5),]
+colnames(sitable14)<- c("Borough", "Neighborhood", "Building Class", "Tax Class", "Block", "Lot", "Present Building Class", "Address", "Zip Code", "Residential Units", "Commercial Units", "Total Units", "Land Square Feet", "Gross Square Feet", "Year Built")
+
+allnyc14 <- rbind(manhattantable14,bronxtable14,brooklyntable14,queenstable14, sitable14)
+
+#write.csv(allnyc18, "/Users/DigitalMarketer1977/Desktop/421a/allnyc.csv")
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+nyc_total_units <- c(NROW(allnyc14),NROW(allnyc15),NROW(allnyc16),NROW(allnyc17),NROW(allnyc18))
+my_years <- c("2014","2015","2016","2017","2018")
+
+total_nyc_421a = data.frame(my_years,nyc_total_units)
+predict421a<-predict(lm(nyc_total_units ~ my_years, data = total_nyc_421a))
+
+total_nyc_plot <- ggplot(data = total_nyc_421a,aes(x=my_years, y=nyc_total_units)) + geom_point(color="yellow") + 
+geom_line(aes(y=predict421a))+ylim(0,100000)+ggtitle("Total Citywide 421a Tax Abated Units")+theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size = 14, hjust = 0))+geom_text(aes(label=comma(nyc_total_units,digits=0)), position = position_dodge(.2), size=3, vjust=-.75)
+total_nyc_plot 
+
+byboro18 <- allnyc18 %>%
+  na.omit() %>%
+  group_by(Borough) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts))
+
+boro421a_18 <- ggplot(data = byboro18,aes(x = reorder(Borough,desc(allcounts)), y = allcounts)) + geom_histogram(fill="blue", stat = "identity") + scale_x_discrete(labels = c("Brooklyn", "Queens", "Manhattan", "Bronx", "Staten Island"), name = "Borough")+ scale_y_continuous(name = "# of Units") + ggtitle("FY 2017/18 421a Units By Borough") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25)
+
+
+
+byboro17 <- allnyc17 %>%
+  na.omit() %>%
+  group_by(Borough) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts))
+
+boro421a_17 <- ggplot(data = byboro17,aes(x = reorder(Borough,desc(allcounts)), y = allcounts)) + geom_histogram(fill="blue", stat = "identity") + scale_x_discrete(labels = c("Brooklyn", "Queens", "Manhattan", "Bronx", "Staten Island"), name = "Borough")+ scale_y_continuous(name = "# of Units") + ggtitle("FY 2016/17 421a Units By Borough") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25)
+
+
+
+byboro16 <- allnyc16 %>%
+  na.omit() %>%
+  group_by(Borough) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts))
+
+boro421a_16 <- ggplot(data = byboro16,aes(x = reorder(Borough,desc(allcounts)), y = allcounts)) + geom_histogram(fill="blue", stat = "identity") + scale_x_discrete(labels = c("Brooklyn", "Queens", "Manhattan", "Bronx", "Staten Island"), name = "Borough")+ scale_y_continuous(name = "# of Units") + ggtitle("FY 2015/16 421a Units By Borough") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25)
+
+
+
+byboro15 <- allnyc15 %>%
+  na.omit() %>%
+  group_by(Borough) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts))
+
+boro421a_15 <- ggplot(data = byboro15,aes(x = reorder(Borough,desc(allcounts)), y = allcounts)) + geom_histogram(fill="blue", stat = "identity") + scale_x_discrete(labels = c("Brooklyn", "Queens", "Manhattan", "Bronx", "Staten Island"), name = "Borough")+ scale_y_continuous(name = "# of Units") + ggtitle("FY 2014/15 421a Units By Borough") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25)
+
+
+
+byboro14 <- allnyc14 %>%
+  na.omit() %>%
+  group_by(Borough) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts))
+
+boro421a_14 <- ggplot(data = byboro14,aes(x = reorder(Borough,desc(allcounts)), y = allcounts)) + geom_histogram(fill="blue", stat = "identity") + scale_x_discrete(labels = c("Brooklyn", "Queens", "Manhattan", "Bronx", "Staten Island"), name = "Borough")+ scale_y_continuous(name = "# of Units") + ggtitle("FY 2013/14 421a Units By Borough") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25)
+
+
+par(mfrow=c(3,2))
+boro421a_18
+boro421a_17
+boro421a_16
+boro421a_15
+boro421a_14
+
+#BY NEIGHBORHOOD
+byneighb18 <- allnyc18 %>%
+  na.omit() %>%
+  group_by(Neighborhood) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts)) 
+
+
+nieghborhood421a_18 <- ggplot(data = byneighb18[c(1:20),], aes(x=reorder(Neighborhood, desc(allcounts)), y = allcounts)) + geom_histogram(fill="grey", stat = "identity", color="blue") + scale_x_discrete(name ="Neighborhood") + scale_y_continuous(name = "# of Units") + ggtitle("FY 2017/18 421a Units Top 20 Neighborhood") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, vjust=-0.25) + theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6))
+
+
+byneighb17 <- allnyc17 %>%
+  na.omit() %>%
+  group_by(Neighborhood) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts)) 
+
+
+nieghborhood421a_17 <- ggplot(data = byneighb17[c(1:20),], aes(x=reorder(Neighborhood, desc(allcounts)), y = allcounts)) + geom_histogram(fill="grey", stat = "identity", color="blue") + scale_x_discrete(name ="Neighborhood") + scale_y_continuous(name = "# of Units") + ggtitle("FY 2016/17 421a Units Top 20 Neighborhood") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, vjust=-0.25) + theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6))
+
+
+byneighb16 <- allnyc16 %>%
+  na.omit() %>%
+  group_by(Neighborhood) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts)) 
+
+
+nieghborhood421a_16 <- ggplot(data = byneighb16[c(1:20),], aes(x=reorder(Neighborhood, desc(allcounts)), y = allcounts)) + geom_histogram(fill="grey", stat = "identity", color="blue") + scale_x_discrete(name ="Neighborhood") + scale_y_continuous(name = "# of Units") + ggtitle("FY 2015/16 421a Units Top 20 Neighborhood") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, vjust=-0.25) + theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6))
+
+
+byneighb15 <- allnyc15 %>%
+  na.omit() %>%
+  group_by(Neighborhood) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts)) 
+
+
+nieghborhood421a_15 <- ggplot(data = byneighb15[c(1:20),], aes(x=reorder(Neighborhood, desc(allcounts)), y = allcounts)) + geom_histogram(fill="grey", stat = "identity", color="blue") + scale_x_discrete(name ="Neighborhood") + scale_y_continuous(name = "# of Units") + ggtitle("FY 2014/15 421a Units Top 20 Neighborhood") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, vjust=-0.25) + theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6))
+
+
+byneighb14 <- allnyc14 %>%
+  na.omit() %>%
+  group_by(Neighborhood) %>%
+  summarise(allcounts = NROW(Address)) %>%
+  arrange(desc(allcounts)) 
+
+
+nieghborhood421a_14 <- ggplot(data = byneighb14[c(1:20),], aes(x=reorder(Neighborhood, desc(allcounts)), y = allcounts)) + geom_histogram(fill="grey", stat = "identity", color="blue") + scale_x_discrete(name ="Neighborhood") + scale_y_continuous(name = "# of Units") + ggtitle("FY 2013/14 421a Units Top 20 Neighborhood") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=14, hjust=0)) + geom_text(aes(label = comma(round(allcounts), digits = 0), sep=","), position = position_dodge(0.9), size=3, vjust=-0.25) + theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6))
+
+
+par(mfrow=c(3,2))
+
+nieghborhood421a_18
+nieghborhood421a_17
+nieghborhood421a_16
+nieghborhood421a_15
+nieghborhood421a_14
+
+```
+
+
+## POPULATION TRENDS BY RACE & ETHNICITY 
+
+The chart below provides a visualization of NYC's overall population growth by race, spanning 2005-2016, as estimated by ACS annually. Although the CAGR for Blacks is .01, and for whites it's .01, visually it appears that instead of Blacks being negatively impacted by Whites - the opposite is true. 
+
+In fact, our Pearson's R measurement yields a .97 between the two groups, indicating an almost perfectly positive linear relationship.
+
+However, the Puerto Rican trend is negatively correlated with the overall population  (-.64) and all Latinos (-.91). 
+
+## - OVERALL NYC POPULATION TREND CHART
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+nycblk <- "https://raw.githubusercontent.com/Misterresearch/421a/master/NYC_Black_Population.csv"
+
+nycblkdf <- read.csv(nycblk, header = TRUE, sep = ",")
+
+nycpr <- "https://raw.githubusercontent.com/Misterresearch/421a/master/NYC_PR_Population.csv"
+nycprdf <- read.csv(nycpr, header = TRUE, sep = ",")
+nycprdf$Latino.Population <- ((1/nycprdf$Puerto.Rican.Latino.Percentage)*nycprdf$Puerto.Rican.Population)
+
+nycprdf$Other.Latino.Population <- (nycprdf$Latino.Population - nycprdf$Puerto.Rican.Population)
+
+ggplot() + ggtitle("Population Trend By Race & Ethnicity")+ scale_x_continuous(breaks = nycblkdf$Year) + scale_y_continuous(name = "Population Count") +geom_line(data = nycblkdf, aes(x=Year, y=Overall.Population, group=1, colour="navy"),  size = 1) + geom_line(data = nycblkdf, aes(x=Year, y=Black.Population, group=1, colour="black"),  size = 1) + geom_line(data = nycblkdf, aes(x=Year, y=White.Population, group=1, colour="white"),  size = 1)  + geom_line(data = nycprdf, aes(x=Year, y=Puerto.Rican.Population, group=1, colour="tan"),  size = 1) + geom_line(data = nycprdf, aes(x=Year, y=Latino.Population, group=1, colour="brown"),  size = 1) + scale_color_discrete(name = "Race/Ethnicity", labels = c("Black","Latino","Overall", "Puerto Rican", "White"))
+
+```
+
+### COMPOUND ANNUAL GROWTH RATE - OVERALL & RACE\ETHNICITY
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+NYCAllPopCAGR <-((nycblkdf$Overall.Population[12] / nycblkdf$Overall.Population[1]) ^ (1 / NROW(nycblkdf))) - 1
+
+NYCWhiteCAGR <- ((nycblkdf$White.Population[12] / nycblkdf$White.Population[1]) ^ (1 / NROW(nycblkdf))) - 1
+
+NYCBlkCAGR <-((nycblkdf$Black.Population[12] / nycblkdf$Black.Population[1]) ^ (1 / NROW(nycblkdf))) - 1
+
+NYCPrCAGR <- ((nycprdf$Puerto.Rican.Population[12] / nycprdf$Puerto.Rican.Population[1]) ^ (1 / NROW(nycblkdf))) - 1
+
+NYCOtherLatinoCAGR <- ((nycprdf$Other.Latino.Population[12] / nycprdf$Other.Latino.Population[1]) ^ (1 / NROW(nycblkdf))) - 1
+
+NYCPopCAGRdf <- data.frame(round(NYCAllPopCAGR, 2), round(NYCWhiteCAGR, 2), round(NYCBlkCAGR, 2), round(NYCOtherLatinoCAGR,2), round(NYCPrCAGR,2))
+colnames(NYCPopCAGRdf) <- c("Overall", "White", "Black", "Other Latino", "Puerto Rican")
+
+formattable(NYCPopCAGRdf)
+```
+
+### CORRELATION MATRIX
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+races <- data.frame(nycblkdf$Overall.Population, nycblkdf$White.Population, nycblkdf$Black.Population, nycprdf$Puerto.Rican.Population, nycprdf$Latino.Population)
+mymatrix <- cor(races)
+round(mymatrix, 2)
+
+```
+
+
+## STATISICAL ANALYSIS -  NYC POPULATION TREND & RACE/ETHNICITY REGRESSION
+
+Given the descriptive statistics and correlation analyses above, the next step is to determine whether or not we can have statistical confidence in the directional measures that have been computed thus far.
+
+Although step-wise regression modeling is useful, given the small number of variables and observations, manually variable selection is also appropriate for this use case. 
+
+Given that our data is numeric and continuous, a linear regression model is the right choice to start investigating relationships between variables. 
+
+*See the Appendix A for summary and data distributions*
+
+The initial regression (race_regression) has the overall NYC population trend (Overall.Population) as the dependent variable, while the trends for Black, White, Latino & Puerto Rican are independent variables. This model, risks multi-collinearity because the Puerto Rican trend is a subset of the Latino trend. This model only has two variables that are statistically significant at a 90% confidence interval (CI) - Black (p = .08) and Latino (p = .05). Each of these groups have a positive coefficient with overall population growth - consistent with the results in the preliminary correlation matrix. It's also worth noting, that the White trend has a negative correlation with the overall population trend, although not statistically significant at a 90% CI, with a p-value = .11. The overall R-squared for this model is .87. 
+
+**It's important to note that the signs of our coefficients are not related to the growth rate, but rather the relationship between each independent variable and the specified dependent variable**
+
+In race_regressionA, the Puerto Rican trend variable is removed, while the overall population trend variable remains as our dependent variable - the R-squared is .86. All explanatory variables are statistically significant at 90% CI or higher - Black (p = .03), White (p = .06) & Latino (p = .01). Again, Black & Latino have a positive slope coefficient. The White trend has a negative slope coefficient, and in this model it's statistically significant at a 90% CI. 
+
+Essentially the white population growth rate trends differently from the overall population growth on NYC, as well as some other groups. 
+
+Given that our research question places NYC's Black population as the subject, and alternatively Puerto Ricans, the last two regression models have these groups as dependent variables. 
+
+The model, race_regressionD, has Black as the dependent variable - with Overall, White & Puerto Rican as the independent variables. At a 90% CI or higher, all of the other independent variables have positive slope coefficient - Overall (p = .04), White (p = .00) and Puerto Rican (p = .06).
+
+In model race_regression E, with Puerto Rican as the dependent variable, Black is the only variable with a positive slope coefficient that is statistically significant at 90% CI (p = .06). The other two variables, Overall & White have a negative slope coefficient and each of them is statistically significant at 90% CI or higher Overall (p = .02), and White (p = .06).
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+race_regression <- lm(nycblkdf$Overall.Population ~ nycblkdf$Black.Population + nycblkdf$White.Population + nycprdf$Puerto.Rican.Population + nycprdf$Latino.Population)
+summary(race_regression)
+
+race_regressionA <- lm(nycblkdf$Overall.Population ~ nycblkdf$Black.Population + nycblkdf$White.Population + nycprdf$Latino.Population)
+summary(race_regressionA)
+
+race_regressionB <- lm(nycblkdf$Overall.Population ~ nycblkdf$Black.Population + nycblkdf$White.Population + nycprdf$Puerto.Rican.Population)
+summary(race_regressionB)
+
+race_regressionC <- lm(nycblkdf$Overall.Population ~ nycprdf$Puerto.Rican.Population)
+summary(race_regressionC)
+
+race_regressionD <- lm(nycblkdf$Black.Population ~ nycblkdf$Overall.Population + nycblkdf$White.Population + nycprdf$Puerto.Rican.Population)
+summary(race_regressionD)
+
+race_regressionE <- lm(nycprdf$Puerto.Rican.Population ~ nycblkdf$Black.Population + nycblkdf$Overall.Population + nycblkdf$White.Population)
+summary(race_regressionE)
+
+```
+
+## REVISITING POPULATION REDUCTION VS. DISPLACEMENT
+
+### US CENSUS DATA NYC YEAR 2010 vs. 2000
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+nyc_district_viz <- "https://raw.githubusercontent.com/Misterresearch/421a/master/nyc_district_census.csv"
+nyc_district_viz <- read.csv(nyc_district_viz , header = TRUE, sep = ",")
+
+nyc_district_viz$Demo1<-as.character(nyc_district_viz$District)
+nyc_district_viz$Demo1[grep("Bronx", nyc_district_viz$Demo1)] <- "Bronx"
+nyc_district_viz$Demo1[grep("Brooklyn", nyc_district_viz$Demo1)] <- "Brooklyn"
+nyc_district_viz$Demo1[grep("Manhattan", nyc_district_viz$Demo1)] <- "Manhattan"
+nyc_district_viz$Demo1[grep("Queens", nyc_district_viz$Demo1)] <- "Queens"
+nyc_district_viz$Demo1[grep("Staten", nyc_district_viz$Demo1)] <- "Staten Island"
+colnames(nyc_district_viz)[3] <- "Borough"
+
+nyc_district_viz$Year.2000.Number <- as.numeric(as.character(gsub(",", "",nyc_district_viz$Year.2000.Number)))
+
+nyc_district_viz$Year.2000.Percent <- as.numeric(as.character(gsub(",", "",nyc_district_viz$Year.2000.Percent)))
+
+nyc_district_viz$Year.2010.Number <- as.numeric(as.character(gsub(",", "",nyc_district_viz$Year.2010.Number)))
+
+nyc_district_viz$Year.2010.Percent <- as.numeric(as.character(gsub(",", "",nyc_district_viz$Year.2010.Percent)))
+
+nyc_district_viz$Number.Change <- as.numeric(as.character(gsub(",", "",nyc_district_viz$Number.Change)))
+
+nyc_district_viz$Percent.Change <- as.numeric(as.character(gsub(",", "",nyc_district_viz$Percent.Change)))
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+year2000_vector <- rep("2000", each = 6)
+year2010_vector <- rep("2010", each = 6)
+
+census_blk_2000 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="Black Nonhispanic") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2000.Number)) %>%
+  arrange(desc(mycounts))
+
+census_blk_2000 = data.frame(year2000_vector,census_blk_2000)
+colnames(census_blk_2000)[1]<-"Year"
+
+census_blk_2010 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="Black Nonhispanic") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2010.Number)) %>%
+  arrange(desc(mycounts))
+
+census_blk_2010 = data.frame(year2010_vector,census_blk_2010)
+colnames(census_blk_2010)[1]<-"Year"
+
+census_blk_boro = rbind(census_blk_2000,census_blk_2010)
+
+blk_borocensus_chart <- ggplot(census_blk_boro, aes(fill=Year, y=mycounts, x=reorder(Borough,desc(mycounts)))) + scale_x_discrete(name = "") + geom_bar(position="dodge", stat="identity") + ggtitle("US Census - NYC Black Pop 2000 vs 2010 Borough")
+blk_borocensus_chart
+
+
+census_wht_2000 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="White Nonhispanic") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2000.Number)) %>%
+  arrange(desc(mycounts))
+
+census_wht_2000 = data.frame(year2000_vector,census_wht_2000)
+colnames(census_wht_2000)[1]<-"Year"
+
+census_wht_2010 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="White Nonhispanic") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2010.Number)) %>%
+  arrange(desc(mycounts))
+
+census_wht_2010 = data.frame(year2010_vector,census_wht_2010)
+colnames(census_wht_2010)[1]<-"Year"
+
+census_wht_boro = rbind(census_wht_2000,census_wht_2010)
+
+wht_borocensus_chart <- ggplot(census_wht_boro, aes(fill=Year, y=mycounts, x=reorder(Borough,desc(mycounts)))) + scale_x_discrete(name = "") + geom_bar(position="dodge", stat="identity") + ggtitle("US Census - White Pop 2000 vs 2010 Borough")
+wht_borocensus_chart
+
+census_hsp_2000 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="Hispanic Origin") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2000.Number)) %>%
+  arrange(desc(mycounts))
+
+census_hsp_2000 = data.frame(year2000_vector,census_hsp_2000)
+colnames(census_hsp_2000)[1]<-"Year"
+
+census_hsp_2010 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="Hispanic Origin") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2010.Number)) %>%
+  arrange(desc(mycounts))
+
+census_hsp_2010 = data.frame(year2010_vector,census_hsp_2010)
+colnames(census_hsp_2010)[1]<-"Year"
+
+census_hsp_boro = rbind(census_hsp_2000,census_hsp_2010)
+
+hsp_borocensus_chart <- ggplot(census_hsp_boro, aes(fill=Year, y=mycounts, x=reorder(Borough,desc(mycounts)))) + scale_x_discrete(name = "") + geom_bar(position="dodge", stat="identity") + ggtitle("US Census - NYC Hispanic Origin Pop 2000 vs 2010 Borough")
+hsp_borocensus_chart
+
+census_azn_2000 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="Asian and Pacific Islander Nonhispanic") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2000.Number)) %>%
+  arrange(desc(mycounts))
+
+census_azn_2000 = data.frame(year2000_vector,census_azn_2000)
+colnames(census_azn_2000)[1]<-"Year"
+
+census_azn_2010 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="Asian and Pacific Islander Nonhispanic") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2010.Number)) %>%
+  arrange(desc(mycounts))
+
+census_azn_2010 = data.frame(year2010_vector,census_azn_2010)
+colnames(census_azn_2010)[1]<-"Year"
+
+census_azn_boro = rbind(census_azn_2000,census_azn_2010)
+
+azn_borocensus_chart <- ggplot(census_azn_boro, aes(fill=Year, y=mycounts, x=reorder(Borough,desc(mycounts)))) + scale_x_discrete(name = "") + geom_bar(position="dodge", stat="identity") + ggtitle("US Census - NYC Asian Pop 2000 vs 2010 Borough")
+azn_borocensus_chart
+
+census_multi_2000 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="Two or More Races Nonhispanic") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2000.Number)) %>%
+  arrange(desc(mycounts))
+
+census_multi_2000 = data.frame(year2000_vector,census_multi_2000)
+colnames(census_multi_2000)[1]<-"Year"
+
+census_multi_2010 <- nyc_district_viz %>%
+  filter(Race.Ethnicity=="Two or More Races Nonhispanic") %>%
+  group_by(Borough) %>%
+  summarise(mycounts = sum(Year.2010.Number)) %>%
+  arrange(desc(mycounts))
+
+census_multi_2010 = data.frame(year2010_vector,census_multi_2010)
+colnames(census_multi_2010)[1]<-"Year"
+
+census_multi_boro = rbind(census_multi_2000,census_multi_2010)
+
+multi_borocensus_chart <- ggplot(census_multi_boro, aes(fill=Year, y=mycounts, x=reorder(Borough,desc(mycounts)))) + scale_x_discrete(name = "") + geom_bar(position="dodge", stat="identity") + ggtitle("US Census - NYC Multi-Racial Pop 2000 vs 2010 Borough")
+multi_borocensus_chart
+```
+
+### AMERICAN COMMUNITY SURVEY (ACS) 2013-2016
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+nyc_neighb_viz <-"https://raw.githubusercontent.com/Misterresearch/421a/master/nyc_neighborhood_acs.csv"
+nyc_neighb_viz<- read.csv(nyc_neighb_viz, header = TRUE, sep = ",")
+
+nyc_neighb_viz$Borough <- gsub("The Bronx", "Bronx",nyc_neighb_viz$Borough)
+
+nyc_neighb_viz$TotalPop <- as.numeric(as.character(gsub(",", "",nyc_neighb_viz$TotalPop)))
+
+nyc_neighb_viz$Hispanic.Latino <- as.numeric(as.character(gsub(",", "",nyc_neighb_viz$Hispanic.Latino)))
+
+nyc_neighb_viz$White <- as.numeric(as.character(gsub(",", "",nyc_neighb_viz$White)))
+nyc_neighb_viz$Black <- as.numeric(as.character(gsub(",", "",nyc_neighb_viz$Black)))
+
+nyc_neighb_viz$AmericanIndian <- as.numeric(as.character(gsub(",", "",nyc_neighb_viz$AmericanIndian)))
+
+nyc_neighb_viz$Asian <- as.numeric(as.character(gsub(",", "",nyc_neighb_viz$Asian)))
+nyc_neighb_viz$Puerto.Rican <- as.numeric(as.character(gsub(",", "",nyc_neighb_viz$Puerto.Rican)))
+```
+
+**ACS: NYC RACE BY YEAR & BOROUGH**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+nyc_blk_boro <- nyc_neighb_viz %>%
+  na.omit() %>%
+  group_by(Year,Borough) %>%
+  summarise(mycounts = sum(Black)) %>%
+  arrange(desc(mycounts)) 
+  
+blk_borotrend_chart <- ggplot(nyc_blk_boro, aes(fill=Borough, y=mycounts, x=Year)) + 
+    geom_bar(position="dodge", stat="identity") + ggtitle("NYC Black Pop by Year & Borough")
+
+nyc_pr_boro <- nyc_neighb_viz %>%
+  na.omit() %>%
+  group_by(Year,Borough) %>%
+  summarise(mycounts = sum(Puerto.Rican)) %>%
+  arrange(desc(mycounts)) 
+  
+pr_borotrend_chart <- ggplot(nyc_pr_boro, aes(fill=Borough, y=mycounts, x=Year)) + 
+    geom_bar(position="dodge", stat="identity") + ggtitle("NYC Puerto Rican Pop by Year & Borough")
+
+nyc_hsp_boro <- nyc_neighb_viz %>%
+  na.omit() %>%
+  group_by(Year,Borough) %>%
+  summarise(mycounts = sum(Hispanic.Latino)) %>%
+  arrange(desc(mycounts)) 
+  
+hsp_borotrend_chart <- ggplot(nyc_hsp_boro, aes(fill=Borough, y=mycounts, x=Year)) + 
+    geom_bar(position="dodge", stat="identity") + ggtitle("NYC Latino Pop by Year & Borough")
+
+nyc_wht_boro <- nyc_neighb_viz %>%
+  na.omit() %>%
+  group_by(Year,Borough) %>%
+  summarise(mycounts = sum(White)) %>%
+  arrange(desc(mycounts)) 
+  
+wht_borotrend_chart <- ggplot(nyc_wht_boro, aes(fill=Borough, y=mycounts, x=Year)) + 
+    geom_bar(position="dodge", stat="identity") + ggtitle("NYC White Pop by Year & Borough")
+
+nyc_azn_boro <- nyc_neighb_viz %>%
+  na.omit() %>%
+  group_by(Year,Borough) %>%
+  summarise(mycounts = sum(Asian)) %>%
+  arrange(desc(mycounts)) 
+  
+azn_borotrend_chart <-ggplot(nyc_azn_boro, aes(fill=Borough, y=mycounts, x=Year)) + 
+    geom_bar(position="dodge", stat="identity") + ggtitle("NYC Asian Pop by Year & Borough")
+
+blk_borotrend_chart
+pr_borotrend_chart 
+hsp_borotrend_chart
+wht_borotrend_chart 
+azn_borotrend_chart 
+
+```
+
+**ACS: NYC BLACKS & PUERTO RICANS BY YEAR & TOP NEIGHBORHOOD**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+nyc_blk_neighb2013 <- nyc_neighb_viz %>%
+  na.omit() %>%
+  filter(Year=="2013") %>%
+  group_by(Year,GeogName) %>%
+  summarise(mycounts = sum(Black)) %>%
+  arrange(desc(mycounts)) 
+  
+blk_neighb_plot2013 <-ggplot(nyc_blk_neighb2013[1:10,], aes(y=mycounts, x=reorder(GeogName,desc(mycounts)))) + scale_x_discrete(name = "") +geom_bar(position="dodge", stat="identity") + ggtitle("NYC Black Pop by 2013 & Neighborhood")+ geom_text(aes(label = comma(round(mycounts),digits=0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25) + theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 4))
+
+nyc_blk_neighb2014 <- nyc_neighb_viz %>%
+  na.omit() %>%
+  filter(Year=="2014") %>%
+  group_by(Year,GeogName) %>%
+  summarise(mycounts = sum(Black)) %>%
+  arrange(desc(mycounts)) 
+  
+blk_neighb_plot2014 <-ggplot(nyc_blk_neighb2014[1:10,], aes(y=mycounts, x=reorder(GeogName,desc(mycounts)))) + scale_x_discrete(name = "") +geom_bar(position="dodge", stat="identity") + ggtitle("NYC Black Pop by 2014 & Neighborhood")+ geom_text(aes(label = comma(round(mycounts),digits=0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25) + theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 4))
+
+nyc_blk_neighb2015 <- nyc_neighb_viz %>%
+  na.omit() %>%
+  filter(Year=="2015") %>%
+  group_by(Year,GeogName) %>%
+  summarise(mycounts = sum(Black)) %>%
+  arrange(desc(mycounts)) 
+  
+blk_neighb_plot2015 <-ggplot(nyc_blk_neighb2015[1:10,], aes(y=mycounts, x=reorder(GeogName,desc(mycounts)))) + scale_x_discrete(name = "") +geom_bar(position="dodge", stat="identity") + ggtitle("NYC Black Pop by 2015 & Neighborhood")+ geom_text(aes(label = comma(round(mycounts),digits=0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25) + theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 4))
+
+nyc_blk_neighb2016 <- nyc_neighb_viz %>%
+  na.omit() %>%
+  filter(Year=="2016") %>%
+  group_by(Year,GeogName) %>%
+  summarise(mycounts = sum(Black)) %>%
+  arrange(desc(mycounts)) 
+  
+blk_neighb_plot2016 <-ggplot(nyc_blk_neighb2016[1:10,], aes(y=mycounts, x=reorder(GeogName,desc(mycounts)))) + scale_x_discrete(name = "") +geom_bar(position="dodge", stat="identity") + ggtitle("NYC Black Pop by 2016 & Neighborhood")+ geom_text(aes(label = comma(round(mycounts),digits=0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25) + theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 4))
+
+
+nyc_pr_neighb2013 <- nyc_neighb_viz %>%
+  na.omit() %>%
+  filter(Year=="2013") %>%
+  group_by(Year,GeogName) %>%
+  summarise(mycounts = sum(Puerto.Rican)) %>%
+  arrange(desc(mycounts)) 
+  
+pr_neighb_plot2013 <-ggplot(nyc_pr_neighb2013[1:10,], aes(y=mycounts, x=reorder(GeogName,desc(mycounts)))) + scale_x_discrete(name = "") +geom_bar(fill="tan",position="dodge", stat="identity") + ggtitle("NYC Puerto Rican Pop by 2013 & Neighborhood")+ geom_text(aes(label = comma(round(mycounts),digits=0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25) + theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 4))
+
+nyc_pr_neighb2014 <- nyc_neighb_viz %>%
+  na.omit() %>%
+  filter(Year=="2014") %>%
+  group_by(Year,GeogName) %>%
+  summarise(mycounts = sum(Puerto.Rican)) %>%
+  arrange(desc(mycounts)) 
+  
+pr_neighb_plot2014 <-ggplot(nyc_pr_neighb2014[1:10,], aes(y=mycounts, x=reorder(GeogName,desc(mycounts)))) + scale_x_discrete(name = "") +geom_bar(fill="tan",position="dodge", stat="identity") + ggtitle("NYC Puerto Rican Pop by 2014 & Neighborhood")+ geom_text(aes(label = comma(round(mycounts),digits=0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25) + theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 4))
+
+nyc_pr_neighb2015 <- nyc_neighb_viz %>%
+  na.omit() %>%
+  filter(Year=="2015") %>%
+  group_by(Year,GeogName) %>%
+  summarise(mycounts = sum(Puerto.Rican)) %>%
+  arrange(desc(mycounts)) 
+  
+pr_neighb_plot2015 <-ggplot(nyc_pr_neighb2015[1:10,], aes(y=mycounts, x=reorder(GeogName,desc(mycounts)))) + scale_x_discrete(name = "") +geom_bar(fill="tan",position="dodge", stat="identity") + ggtitle("NYC Puerto Rican Pop by 2015 & Neighborhood")+ geom_text(aes(label = comma(round(mycounts),digits=0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25) + theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 4))
+
+nyc_pr_neighb2016 <- nyc_neighb_viz %>%
+  na.omit() %>%
+  filter(Year=="2016") %>%
+  group_by(Year,GeogName) %>%
+  summarise(mycounts = sum(Puerto.Rican)) %>%
+  arrange(desc(mycounts)) 
+  
+pr_neighb_plot2016 <-ggplot(nyc_pr_neighb2016[1:10,], aes(y=mycounts, x=reorder(GeogName,desc(mycounts)))) + scale_x_discrete(name = "") +geom_bar(fill="tan",position="dodge", stat="identity") + ggtitle("NYC Puerto Rican Pop by 2016 & Neighborhood")+ geom_text(aes(label = comma(round(mycounts),digits=0), sep=","), position = position_dodge(0.9), size=3, color="black", vjust=-0.25) + theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 4))
+
+par(mfrow=c(2,2))
+blk_neighb_plot2013
+blk_neighb_plot2014
+blk_neighb_plot2015
+blk_neighb_plot2016
+
+par(mfrow=c(2,2))
+pr_neighb_plot2013
+pr_neighb_plot2014
+pr_neighb_plot2015
+pr_neighb_plot2016
+
+```
+
+
+### POPULATION BY RACE TREND SUMMARY
+
+Based on our descriptive data, visualization and multiple regression analysis we're able to determine that there a statistically significant negative and positive relationships between the growth rates and trends of several racial/ethnic groups in New York City. 
+
+It seems that the White population growth trend is only positive correlated with the Black growth trend, but has an inverse relationship with the overall population and Puerto Ricans. It's possible that gentrification by whites adversely impacted historically Puerto Rican neighborhoods, while having no net impact on Blacks. It's also interesting that although Blacks and Whites have near perfect linear correlation, positive CAGR and positive regression slope coefficients with each other - that their relationship to the Puerto Rican growth trend is opposite that of each other (see race_regressonD & race_regressionE). 
+
+
+### 421a SHINY APP VISUALIZATION & HEATMAP FOUND HERE:
+
+[NYC 421a Tax Abatement Shiny App](https://bk77.shinyapps.io/421a/)
+
+
+## CONCLUSION
+
+Without more historical data for NYC 421a tax abatement program, very little can be done to link it to growth rates of different racial/ethnic groups within NYC or to the NYPD's policy of Stop & Frisk from 2003-2011. However, what we have been to do is learn a few key insights concerning our research question. First, it's futile to try and determine the causes of NYC's Black population decrease, because based on the ACS data - it's actually increasing. Perhaps a new question should be asked, one that isolates African-Americans, as opposed to including immigrant groups which may masks net losses among African-Americans. So far, we have learned that the White growth rate is negatively related to the overall and Latino growth rate of NYC. 
+
+Finally, we discovered that the Puerto Rican subset within the Latino group is actually experiencing negative growth, which seems to be conversely related to the growth of whites and other Latinos. It could be that whites are directly impacting the population decrease among Puerto Ricans, while other Latino groups are increasign inhabiting non-gentrified areas of NYC. 
+
+We've established where tax abated units have been most constructed, and we've established negative population growth for Puerto Ricans. However, without historical data for the 421a tax abatement we cannot establish a statistically significant link between the two. 
+
+## APPENDIX A - DATA DISTRIBUTION
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+summary(nycblkdf$Overall.Population)
+summary(nycblkdf$White.Population)
+summary(nycblkdf$Black.Population)
+summary(nycprdf$Latino.Population)
+summary(nycprdf$Puerto.Rican.Population)
+
+
+par(mfrow=c(3,2))
+
+hist(nycblkdf$Overall.Population, col = "blue")
+hist(nycblkdf$White, col = "red")
+hist(nycblkdf$Black.Population, col = "black")
+hist(nycprdf$Latino.Population, col = "brown")
+hist(nycprdf$Puerto.Rican.Population, col = "tan")
+
+par(mfrow=c(3,2))
+qqnorm(nycblkdf$Overall.Population, col = "blue")
+qqnorm(nycblkdf$White, col = "red")
+qqnorm(nycblkdf$Black.Population, col = "black")
+qqnorm(nycprdf$Latino.Population, col = "brown")
+qqnorm(nycprdf$Puerto.Rican.Population, col = "tan")
+```
+
+[^1]: [Black population surges in East New York as it falls across the borough and city](http://www.nydailynews.com/new-york/brooklyn/black-population-surges-east-new-york-falls-borough-city-article-1.1076068)
+
+[^2]: [Brooklyn Is Booming. So Why Is It Shrinking](https://www.citylab.com/equity/2018/03/brooklyn-is-booming-so-why-is-it-shrinking/556280/)
+
+[^3]: [American Community Survey](https://www1.nyc.gov/site/planning/data-maps/nyc-population/american-community-survey.page)
+
+[^4]: [NYC 421a Housing Table](http://www1.nyc.gov/site/finance/benefits/benefits-421a.page)
+
+
+[^5]: [NYPD Stop & Frisk](https://www1.nyc.gov/site/nypd/stats/reports-analysis/stopfrisk.page)
+
+[Source Code](https://github.com/Misterresearch/421a/blob/master/nyc_421a.Rmd)
+
+[Googleway](https://cran.r-project.org/web/packages/googleway/vignettes/googleway-vignette.html)
+
